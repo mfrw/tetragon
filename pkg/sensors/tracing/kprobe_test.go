@@ -42,6 +42,15 @@ const (
 	kprobeTestDir  = "/sys/fs/bpf/testObserver/"
 )
 
+var (
+	allFiles = [4]string{
+		"/etc/passwd",
+		"/etc/group",
+		"/etc/hostname",
+		"/etc/shadow",
+	}
+)
+
 func TestKprobeObjectLoad(t *testing.T) {
 	writeReadHook := `
 apiVersion: cilium.io/v1alpha1
@@ -2055,6 +2064,13 @@ func createCrdFile(t *testing.T, readHook string) {
 	}
 }
 
+func getNumValues() int {
+	if kernels.EnableLargeProgs() {
+		return 4
+	}
+	return 2
+}
+
 func TestKprobeMatchArgsFileEqual(t *testing.T) {
 	var doneWG, readyWG sync.WaitGroup
 	defer doneWG.Wait()
@@ -2062,9 +2078,14 @@ func TestKprobeMatchArgsFileEqual(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "/etc/passwd"
 	argVals[1] = "/etc/group"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "/etc/hostname"
+		argVals[3] = "/etc/shadow"
+	}
 
 	createCrdFile(t, getMatchArgsFileCrd("Equal", argVals[:]))
 
@@ -2075,14 +2096,17 @@ func TestKprobeMatchArgsFileEqual(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	fd1 := openFile(t, "/etc/passwd")
-	fd2 := openFile(t, "/etc/group")
+	fds := make([]int, numValues)
+	for i := 0; i < numValues; i++ {
+		fds[i] = openFile(t, allFiles[i])
+	}
 
-	kpChecker1 := createFdInstallChecker(fd1, "/etc/passwd")
-	kpChecker2 := createFdInstallChecker(fd2, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i, fd := range fds {
+		kpCheckers[i] = createFdInstallChecker(fd, allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(kpChecker1, kpChecker2)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
@@ -2094,9 +2118,14 @@ func TestKprobeMatchArgsFilePostfix(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "passwd"
 	argVals[1] = "group"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "hostname"
+		argVals[3] = "shadow"
+	}
 
 	createCrdFile(t, getMatchArgsFileCrd("Postfix", argVals[:]))
 
@@ -2107,14 +2136,17 @@ func TestKprobeMatchArgsFilePostfix(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	fd1 := openFile(t, "/etc/passwd")
-	fd2 := openFile(t, "/etc/group")
+	fds := make([]int, numValues)
+	for i := 0; i < numValues; i++ {
+		fds[i] = openFile(t, allFiles[i])
+	}
 
-	kpChecker1 := createFdInstallChecker(fd1, "/etc/passwd")
-	kpChecker2 := createFdInstallChecker(fd2, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i, fd := range fds {
+		kpCheckers[i] = createFdInstallChecker(fd, allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(kpChecker1, kpChecker2)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
@@ -2126,9 +2158,14 @@ func TestKprobeMatchArgsFilePrefix(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "/etc/p"
 	argVals[1] = "/etc/g"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "/etc/h"
+		argVals[3] = "/etc/s"
+	}
 
 	createCrdFile(t, getMatchArgsFileCrd("Prefix", argVals[:]))
 
@@ -2139,14 +2176,17 @@ func TestKprobeMatchArgsFilePrefix(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	fd1 := openFile(t, "/etc/passwd")
-	fd2 := openFile(t, "/etc/group")
+	fds := make([]int, numValues)
+	for i := 0; i < numValues; i++ {
+		fds[i] = openFile(t, allFiles[i])
+	}
 
-	kpChecker1 := createFdInstallChecker(fd1, "/etc/passwd")
-	kpChecker2 := createFdInstallChecker(fd2, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i, fd := range fds {
+		kpCheckers[i] = createFdInstallChecker(fd, allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(kpChecker1, kpChecker2)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
@@ -2158,9 +2198,14 @@ func TestKprobeMatchArgsFdEqual(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "/etc/passwd"
 	argVals[1] = "/etc/group"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "/etc/hostname"
+		argVals[3] = "/etc/shadow"
+	}
 
 	createCrdFile(t, getMatchArgsFdCrd("Equal", argVals[:]))
 
@@ -2171,14 +2216,13 @@ func TestKprobeMatchArgsFdEqual(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	readFile(t, "/etc/passwd")
-	readFile(t, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i := 0; i < numValues; i++ {
+		readFile(t, allFiles[i])
+		kpCheckers[i] = createReadChecker(allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(
-		createReadChecker("/etc/passwd"),
-		createReadChecker("/etc/group"),
-	)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
@@ -2190,9 +2234,14 @@ func TestKprobeMatchArgsFdPostfix(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "passwd"
 	argVals[1] = "group"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "hostname"
+		argVals[3] = "shadow"
+	}
 
 	createCrdFile(t, getMatchArgsFdCrd("Postfix", argVals[:]))
 
@@ -2203,14 +2252,13 @@ func TestKprobeMatchArgsFdPostfix(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	readFile(t, "/etc/passwd")
-	readFile(t, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i := 0; i < numValues; i++ {
+		readFile(t, allFiles[i])
+		kpCheckers[i] = createReadChecker(allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(
-		createReadChecker("/etc/passwd"),
-		createReadChecker("/etc/group"),
-	)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
@@ -2222,9 +2270,14 @@ func TestKprobeMatchArgsFdPrefix(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), cmdWaitTime)
 	defer cancel()
 
-	argVals := make([]string, 2)
+	numValues := getNumValues()
+	argVals := make([]string, numValues)
 	argVals[0] = "/etc/p"
 	argVals[1] = "/etc/g"
+	if kernels.EnableLargeProgs() {
+		argVals[2] = "/etc/h"
+		argVals[3] = "/etc/s"
+	}
 
 	createCrdFile(t, getMatchArgsFdCrd("Prefix", argVals[:]))
 
@@ -2235,14 +2288,13 @@ func TestKprobeMatchArgsFdPrefix(t *testing.T) {
 	observer.LoopEvents(ctx, t, &doneWG, &readyWG, obs)
 	readyWG.Wait()
 
-	readFile(t, "/etc/passwd")
-	readFile(t, "/etc/group")
+	kpCheckers := make([]ec.EventChecker, numValues)
+	for i := 0; i < numValues; i++ {
+		readFile(t, allFiles[i])
+		kpCheckers[i] = createReadChecker(allFiles[i])
+	}
 
-	checker := ec.NewUnorderedEventChecker(
-		createReadChecker("/etc/passwd"),
-		createReadChecker("/etc/group"),
-	)
-
+	checker := ec.NewUnorderedEventChecker(kpCheckers...)
 	err = jsonchecker.JsonTestCheck(t, checker)
 	assert.NoError(t, err)
 }
