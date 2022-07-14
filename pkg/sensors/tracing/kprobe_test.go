@@ -35,9 +35,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var mountPath = "/tmp2"
-
 const (
+	mountPath      = "/tmp2"
 	testConfigFile = "/tmp/tetragon.gotest.yaml"
 	kprobeTestDir  = "/sys/fs/bpf/testObserver/"
 )
