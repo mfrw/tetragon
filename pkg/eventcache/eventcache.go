@@ -53,6 +53,7 @@ type Cache struct {
 	objsChan chan cacheObj
 	cache    []cacheObj
 	server   *server.Server
+	dur      time.Duration
 }
 
 func (ec *Cache) eventLabels(endpoint *hubblev1.Endpoint, event *cacheObj) ([]string, error) {
@@ -132,7 +133,7 @@ func (ec *Cache) handleNetEvents() {
 }
 
 func (ec *Cache) loop() {
-	ticker := time.NewTicker(eventRetryTimer)
+	ticker := time.NewTicker(ec.dur)
 	defer ticker.Stop()
 
 	for {
@@ -181,7 +182,7 @@ func (ec *Cache) Add(internal *process.ProcessInternal,
 	ec.objsChan <- cacheObj{internal: internal, event: e, timestamp: t, msg: msg}
 }
 
-func New(s *server.Server) *Cache {
+func NewWithTimer(s *server.Server, dur time.Duration) *Cache {
 	if cache != nil {
 		return cache
 	}
@@ -190,10 +191,15 @@ func New(s *server.Server) *Cache {
 		objsChan: make(chan cacheObj),
 		cache:    make([]cacheObj, 0),
 		server:   s,
+		dur:      dur,
 	}
 	nodeName = node.GetNodeNameForExport()
 	go cache.loop()
 	return cache
+}
+
+func New(s *server.Server) *Cache {
+	return NewWithTimer(s, eventRetryTimer)
 }
 
 func Get() *Cache {
